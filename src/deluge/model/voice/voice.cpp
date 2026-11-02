@@ -2499,7 +2499,8 @@ dontUseCache: {}
 			    sound.sources[s].oscType, sourceAmplitude, renderBuffer, oscBufferEnd, numSamples, phaseIncrement,
 			    pulseWidth, &unisonParts[u].sources[s].oscPos, true, amplitudeIncrement, doOscSync,
 			    oscSyncPosThisUnison, oscSyncPhaseIncrementsThisUnison, oscRetriggerPhase, waveIndexIncrement,
-			    sourceWaveIndexesLastTime[s], waveTable, &unisonParts[u].sources[s].supersawPhases);
+			    sourceWaveIndexesLastTime[s], waveTable, &unisonParts[u].sources[s].supersawPhases,
+			    sound.sources[s].jpMode, &unisonParts[u].sources[s].jpSuperSaw);
 
 			if (stereoBuffer) {
 				// TODO: if render buffer was typed we could use addPannedMono()

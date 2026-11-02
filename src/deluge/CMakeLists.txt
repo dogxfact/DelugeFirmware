@@ -1,4 +1,11 @@
 configure_file(util/firmware_version.h.in util/firmware_version.h @ONLY)
+# JP-mode oscillators: point this at a jp_osc_data include directory to build with the traced JP-8000 constants.
+# Left empty, the published defaults are used. Applies to every target here, so all files see the same constants.
+set(JP_OSC_DATA_DIR "" CACHE PATH "Include directory holding jp_osc_data/constants.h (optional)")
+if(JP_OSC_DATA_DIR)
+  include_directories(${JP_OSC_DATA_DIR})
+endif()
+
 add_subdirectory(dsp)
 add_subdirectory(gui/l10n)
 add_subdirectory(gui/menu_item/generate)

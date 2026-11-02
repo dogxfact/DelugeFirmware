@@ -36,6 +36,9 @@ public:
 	SampleControls sampleControls;
 
 	OscType oscType;
+	// JP-8000 oscillator mode for OscType::SUPERSAW: 0 = off (stock supersaw), 1 = JP Super Saw.
+	// Wave index sets Detune, phase width sets Mix. Saved as the "jpMode" attribute.
+	uint8_t jpMode = 0;
 
 	// These are not valid for Samples
 	int16_t transpose;

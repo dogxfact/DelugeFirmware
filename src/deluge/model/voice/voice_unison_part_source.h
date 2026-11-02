@@ -18,6 +18,7 @@
 #pragma once
 
 #include "definitions_cxx.hpp"
+#include "dsp/oscillators/jp_supersaw.h"
 #include "dsp/oscillators/supersaw.h"
 #include "model/sample/sample.h"
 #include <gsl/gsl>
@@ -44,6 +45,9 @@ public:
 	uint32_t oscPos; // FKA phase. No longer used for Sample playback / rate conversion position. Only waves, including
 	                 // wavetable.
 	deluge::dsp::Supersaw::SidePhases supersawPhases = deluge::dsp::Supersaw::sidePhasesFrom(0);
+	// JP mode: free-running counters, smoothers, high-pass and decimator state. Never reset on note-on, so
+	// the saws run on from wherever this voice left them, as on the JP.
+	deluge::dsp::jp::SuperSaw::State jpSuperSaw;
 	uint32_t phaseIncrementStoredValue;
 	int32_t carrierFeedback;
 	bool active;

@@ -29,7 +29,22 @@ Oscillator::renderOsc(OscType type, int32_t amplitude, int32_t* bufferStart, int
                       uint32_t phaseIncrement, uint32_t pulseWidth, uint32_t* startPhase, bool applyAmplitude,
                       int32_t amplitudeIncrement, bool doOscSync, uint32_t resetterPhase,
                       uint32_t resetterPhaseIncrement, uint32_t retriggerPhase, int32_t waveIndexIncrement,
-                      int sourceWaveIndexLastTime, WaveTable* waveTable, Supersaw::SidePhases* supersawPhases) {
+                      int sourceWaveIndexLastTime, WaveTable* waveTable, Supersaw::SidePhases* supersawPhases,
+                      uint8_t jpMode, jp::SuperSaw::State* jpState) {
+
+	// JP mode: the JP-8000 Super Saw, rendered at 88.2 kHz and decimated. Wave index is Detune, pulse width is
+	// Mix. No sync, no retrigger, no phase reset.
+	if (type == OscType::SUPERSAW && jpMode == 1 && jpState != nullptr) {
+		int32_t detune = sourceWaveIndexLastTime + waveIndexIncrement * numSamples;
+		int32_t* renderBuffer = applyAmplitude ? oscSyncRenderingBuffer : bufferStart;
+		jp::SuperSaw::render(renderBuffer, numSamples, phaseIncrement, detune, pulseWidth, *jpState);
+		if (applyAmplitude) {
+			// Full scale comes out at half a saw's
+			applyAmplitudeVectorToBuffer(amplitude << 1, numSamples, amplitudeIncrement << 1, bufferStart,
+			                             oscSyncRenderingBuffer);
+		}
+		return;
+	}
 
 	// The supersaw does its own thing. Pulse width sets the number of saws, and there's no osc sync
 	if (type == OscType::SUPERSAW) {

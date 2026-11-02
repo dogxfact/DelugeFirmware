@@ -3361,6 +3361,10 @@ Error Sound::readSourceFromFile(Deserializer& reader, int32_t s, ParamManagerFor
 			source->setOscType(stringToOscType(reader.readTagOrAttributeValue()));
 			reader.exitTag("type");
 		}
+		else if (!strcmp(tagName, "jpMode")) {
+			source->jpMode = std::clamp<int32_t>(reader.readTagOrAttributeValueInt(), 0, 1);
+			reader.exitTag("jpMode");
+		}
 		else if (!strcmp(tagName, "phaseWidth")) {
 			ENSURE_PARAM_MANAGER_EXISTS
 			patchedParams->readParam(reader, patchedParamsSummary, params::LOCAL_OSC_A_PHASE_WIDTH + s,
@@ -3634,6 +3638,9 @@ void Sound::writeSourceToFile(Serializer& writer, int32_t s, char const* tagName
 
 	if (synthMode != SynthMode::FM) {
 		writer.writeAttribute("type", oscTypeToString(source->oscType));
+		if (source->oscType == OscType::SUPERSAW && source->jpMode != 0) {
+			writer.writeAttribute("jpMode", source->jpMode);
+		}
 	}
 
 	// If (multi)sample...

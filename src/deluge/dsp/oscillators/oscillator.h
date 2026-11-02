@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include "dsp/oscillators/jp_supersaw.h"
 #include "dsp/oscillators/supersaw.h"
 #include "storage/wave_table/wave_table.h"
 namespace deluge::dsp {
@@ -30,7 +31,8 @@ public:
 	                      uint32_t phaseIncrement, uint32_t pulseWidth, uint32_t* startPhase, bool applyAmplitude,
 	                      int32_t amplitudeIncrement, bool doOscSync, uint32_t resetterPhase,
 	                      uint32_t resetterPhaseIncrement, uint32_t retriggerPhase, int32_t waveIndexIncrement,
-	                      int sourceWaveIndexLastTime, WaveTable* waveTable, Supersaw::SidePhases* supersawPhases);
+	                      int sourceWaveIndexLastTime, WaveTable* waveTable, Supersaw::SidePhases* supersawPhases,
+	                      uint8_t jpMode = 0, jp::SuperSaw::State* jpState = nullptr);
 };
 
 } // namespace deluge::dsp
