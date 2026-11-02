@@ -29,10 +29,6 @@
 #include "processing/source.h"
 #include "storage/multi_range/multisample_range.h"
 
-namespace {
-using JpSuperSawPool = deluge::memory::ObjectPool<deluge::dsp::jp::SuperSaw::State, deluge::memory::fast_allocator>;
-}
-
 VoiceUnisonPartSource::~VoiceUnisonPartSource() {
 	unassign(false);
 }
@@ -97,11 +93,9 @@ bool VoiceUnisonPartSource::noteOn(Voice* voice, Source* source, VoiceSamplePlay
 		}
 		if (synthMode != SynthMode::FM && source->oscType == OscType::SUPERSAW && source->jpMode != 0
 		    && jpSuperSaw == nullptr) {
-			try {
-				jpSuperSaw = JpSuperSawPool::get().acquire().release();
-			} catch (deluge::exception e) {
-				jpSuperSaw = nullptr; // renders as the stock supersaw
-			}
+			// Same key (this address) always gets the same free-running state, including after
+			// unassign and after an in-place Voice steal. No heap work in the audio path.
+			jpSuperSaw = deluge::dsp::jp::SuperSaw::lease(this, AudioEngine::audioSampleTimer);
 		}
 	}
 
@@ -121,7 +115,7 @@ void VoiceUnisonPartSource::unassign(bool deletingSong) {
 	}
 
 	if (jpSuperSaw != nullptr) {
-		JpSuperSawPool::recycle(jpSuperSaw);
+		deluge::dsp::jp::SuperSaw::unlease(jpSuperSaw, AudioEngine::audioSampleTimer);
 		jpSuperSaw = nullptr;
 	}
 

@@ -54,7 +54,17 @@ public:
 		Core core;
 		HalfBand::State decimator;
 		bool seeded = false;
+		int32_t lastPitch = 0; // last centre increment, used to keep counters running while unleased
 	};
+
+	/// One bank slot per live JP source. The same key (the VoiceUnisonPartSource address) always
+	/// returns the same State, including after unassign and after an in-place Voice steal. Counters
+	/// are never reconstructed. If the key is idle, lease() advances them by the silent gap.
+	static State* lease(const void* key, uint32_t nowSamples);
+	static void unlease(State* state, uint32_t nowSamples);
+
+	/// Advance the seven counters by numInternalFrames at pitch. O(1), wrap-safe.
+	static void advancePhases(Core& core, int32_t pitch, uint32_t numInternalFrames);
 
 	/// Wave index (bipolar +-2^30) to CONTROL 1 step 0..127.
 	static constexpr int32_t detuneStep(int32_t waveIndex) {

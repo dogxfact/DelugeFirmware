@@ -398,6 +398,70 @@ static void testPhase() {
 	printf("  100 note-ons: %ld faults; 128 vs 37+91 samples: %d differ\n", bad, diff);
 }
 
+static void testLease() {
+	printf("Free-running bank: same key keeps phases; silent gap advances counters\n");
+	alignas(8) char keyA[8] = {};
+	alignas(8) char keyB[8] = {};
+	uint32_t inc = 0x1000000;
+	int32_t buf[32];
+
+	SuperSaw::State* a1 = SuperSaw::lease(keyA, 1000);
+	CHECK(a1 != nullptr, "lease A failed");
+	if (a1 == nullptr) {
+		return;
+	}
+	SuperSaw::render(buf, 32, inc, 0, 0x40000000, *a1);
+	uint32_t phaseAfterNote[7];
+	int32_t pitch = a1->lastPitch;
+	for (int i = 0; i < 7; i++) {
+		phaseAfterNote[i] = a1->core.phase[i];
+	}
+	SuperSaw::unlease(a1, 1000 + 32);
+
+	// Same key, later: must be the same slot, counters advanced by the silent gap only
+	SuperSaw::State* a2 = SuperSaw::lease(keyA, 1000 + 32 + 100);
+	CHECK(a2 == a1, "same key did not return the same state");
+	CHECK(a2 != nullptr && a2->seeded, "re-lease lost seeded flag (would reseed)");
+	if (a2 == nullptr) {
+		return;
+	}
+	int gapBad = 0;
+	SuperSaw::Core expected = {};
+	for (int i = 0; i < 7; i++) {
+		expected.phase[i] = phaseAfterNote[i];
+	}
+	expected.detune = a2->core.detune;
+	SuperSaw::advancePhases(expected, pitch, 100 * 2);
+	for (int i = 0; i < 7; i++) {
+		gapBad += a2->core.phase[i] != expected.phase[i];
+	}
+	CHECK(gapBad == 0, "%d counters did not advance across the silent gap", gapBad);
+
+	// A different key must not share A's state
+	SuperSaw::State* b1 = SuperSaw::lease(keyB, 2000);
+	CHECK(b1 != nullptr && b1 != a2, "B shared A's slot");
+	if (b1 != nullptr) {
+		SuperSaw::unlease(b1, 2000);
+	}
+	SuperSaw::unlease(a2, 1000 + 32 + 100);
+
+	// Reconstruct-style reset (what the old ObjectPool did) must not be how lease works:
+	// after unlease + lease the seeded flag and phases stay (already checked). Also O(1) advance.
+	SuperSaw::Core before = {};
+	for (int i = 0; i < 7; i++) {
+		before.phase[i] = 0x12340000u * static_cast<uint32_t>(i + 1);
+	}
+	before.detune = detuneTarget(64);
+	SuperSaw::Core after = before;
+	SuperSaw::advancePhases(after, pitch, 0);
+	int noOp = 0;
+	for (int i = 0; i < 7; i++) {
+		noOp += after.phase[i] != before.phase[i];
+	}
+	CHECK(noOp == 0, "advancePhases(0) moved counters");
+	printf("  lease identity and silent-gap advance ok\n");
+}
+
 static void testPitchMapping() {
 	printf("Pitch: Deluge phase increment -> JP increment\n");
 	int snapped = 0;
@@ -426,6 +490,7 @@ int main() {
 	testMixGains();
 	testSzabo();
 	testPhase();
+	testLease();
 	testPitchMapping();
 	printf(failures ? "FAILED: %d\n" : "ALL PASSED\n", failures);
 	return failures ? 1 : 0;

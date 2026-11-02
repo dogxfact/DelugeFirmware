@@ -331,7 +331,86 @@ void SuperSaw::seed(State& state, const Controls& controls, uint32_t random) {
 	}
 	state.core.detune = controls.detuneTarget;
 	state.core.mix = controls.mixTarget;
+	state.lastPitch = controls.pitch;
 	state.seeded = true;
+}
+
+void SuperSaw::advancePhases(Core& core, int32_t pitch, uint32_t numInternalFrames) {
+	if (numInternalFrames == 0 || pitch == 0) {
+		return;
+	}
+	uint32_t d[kNumSaws];
+	steps(core.detune, pitch, d);
+	for (int32_t i = 0; i < kNumSaws; i++) {
+		core.phase[i] += d[i] * numInternalFrames;
+	}
+}
+
+namespace {
+// Persistent bank: ObjectPool reconstructs on acquire (and recycle runs the destructor), which
+// reseeds every note. Slots here keep their Core after unlease. Key is the VoiceUnisonPartSource
+// address, which is stable across in-place Voice steals.
+constexpr int32_t kBankSlots = 48;
+struct Slot {
+	SuperSaw::State state;
+	const void* key = nullptr;
+	bool leased = false;
+	uint32_t lastNow = 0;
+};
+Slot bank[kBankSlots];
+} // namespace
+
+SuperSaw::State* SuperSaw::lease(const void* key, uint32_t nowSamples) {
+	if (key == nullptr) {
+		return nullptr;
+	}
+	Slot* found = nullptr;
+	Slot* unused = nullptr;
+	Slot* idle = nullptr;
+	for (Slot& slot : bank) {
+		if (slot.key == key) {
+			found = &slot;
+			break;
+		}
+		if (unused == nullptr && slot.key == nullptr) {
+			unused = &slot;
+		}
+		if (idle == nullptr && !slot.leased) {
+			idle = &slot;
+		}
+	}
+	Slot* slot = found != nullptr ? found : (unused != nullptr ? unused : idle);
+	if (slot == nullptr) {
+		return nullptr; // bank full: caller falls back to the stock supersaw
+	}
+	if (slot != found) {
+		slot->key = key;
+	}
+	else if (slot->state.seeded && slot->state.lastPitch != 0) {
+		uint32_t dt = nowSamples - slot->lastNow;
+		if (dt != 0) {
+			advancePhases(slot->state.core, slot->state.lastPitch, dt * 2u);
+			if (dt > 16u) {
+				slot->state.decimator = {};
+			}
+		}
+	}
+	slot->leased = true;
+	slot->lastNow = nowSamples;
+	return &slot->state;
+}
+
+void SuperSaw::unlease(State* state, uint32_t nowSamples) {
+	if (state == nullptr) {
+		return;
+	}
+	for (Slot& slot : bank) {
+		if (&slot.state == state) {
+			slot.leased = false;
+			slot.lastNow = nowSamples;
+			return;
+		}
+	}
 }
 
 void SuperSaw::render(int32_t* buffer, int32_t numSamples, uint32_t phaseIncrement, int32_t waveIndex,
@@ -342,6 +421,7 @@ void SuperSaw::render(int32_t* buffer, int32_t numSamples, uint32_t phaseIncreme
 		seedState = seedState * 1664525u + 1013904223u;
 		seed(state, controls, seedState | 1u);
 	}
+	state.lastPitch = controls.pitch;
 
 	int32_t even[HalfBand::kEvenHistory + kChunk];
 	int32_t odd[HalfBand::kOddHistory + kChunk];
