@@ -146,4 +146,25 @@ inline constexpr int32_t kFbExciteShift = 6;      // quiet saw into the loop (pl
 inline constexpr int32_t kFbDelayMask = kFbDelaySize - 1;
 inline constexpr int32_t kFbBankSlots = 48;
 
+// --- JP-style -24 dB filter ----------------------------------------------------
+// Published character: JP-8000 24 dB/oct is two cascaded 12 dB/oct stages, an
+// exponential cutoff, and resonance that self-oscillates (Roland JP-8000
+// Owner's Manual; typical descriptions of the JP filter). Frequency range and
+// the max-resonance damping word are our defaults (not published).
+// Optional overrides: jp_osc_data/filter.h.
+
+#if __has_include(<jp_osc_data/filter.h>)
+#include <jp_osc_data/filter.h>
+inline constexpr float kJpFiltFminHz = jp_osc_data::kJpFiltFminHz;
+inline constexpr float kJpFiltFmaxHz = jp_osc_data::kJpFiltFmaxHz;
+inline constexpr int32_t kJpFiltMinDamp = jp_osc_data::kJpFiltMinDamp;
+inline constexpr int32_t kJpFiltMaxDamp = jp_osc_data::kJpFiltMaxDamp;
+#else
+inline constexpr float kJpFiltFminHz = 20.0f;
+inline constexpr float kJpFiltFmaxHz = 18000.0f;
+// q31 damping at max resonance. ~3–5 s ring at 1 kHz for a 2-pole (placeholder).
+inline constexpr int32_t kJpFiltMinDamp = 220000;
+inline constexpr int32_t kJpFiltMaxDamp = 1073741824; // 0.5
+#endif
+
 } // namespace deluge::dsp::jp

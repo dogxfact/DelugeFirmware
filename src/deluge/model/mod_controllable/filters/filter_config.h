@@ -29,9 +29,10 @@ enum class FilterMode {
 	SVF_BAND,              // first HPF mode
 	SVF_NOTCH,             // last LPF mode
 	HPLADDER,
-	OFF, // Keep last as a sentinel. Signifies that the filter is not on, used for filter reset logic
+	OFF,     // Signifies that the filter is not on. Numeric value kept so HPF menu indexing is unchanged.
+	JP_24DB, // JP-style cascaded 12+12. After OFF so existing mode numbers do not shift.
 };
-constexpr int32_t kNumFilterModes = util::to_underlying(FilterMode::OFF) + 1;
+constexpr int32_t kNumFilterModes = util::to_underlying(FilterMode::JP_24DB) + 1;
 constexpr FilterMode kLastLadder = FilterMode::TRANSISTOR_24DB_DRIVE;
 constexpr int32_t kNumLPFModes = util::to_underlying(FilterMode::SVF_NOTCH) + 1;
 constexpr FilterMode lastLpfMode = FilterMode::SVF_NOTCH;
@@ -101,6 +102,10 @@ public:
 		case FilterMode::TRANSISTOR_24DB_DRIVE:
 			family = FilterFamily::LP_LADDER;
 			type = LpLadderType::DRIVE;
+			break;
+		case FilterMode::JP_24DB:
+			family = FilterFamily::LP_LADDER;
+			type = LpLadderType::LP24;
 			break;
 		}
 	}

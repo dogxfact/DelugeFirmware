@@ -1443,6 +1443,8 @@ char const* ModControllableAudio::getLPFModeDisplayName() {
 		return l10n::get(STRING_FOR_SVF_BAND);
 	case FilterMode::SVF_NOTCH:
 		return l10n::get(STRING_FOR_SVF_NOTCH);
+	case FilterMode::JP_24DB:
+		return l10n::get(STRING_FOR_JP_24DB);
 	default:
 		return l10n::get(STRING_FOR_NONE);
 	}

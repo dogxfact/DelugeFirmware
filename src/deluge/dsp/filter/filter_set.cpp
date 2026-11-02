@@ -49,6 +49,9 @@ q31_t tempRenderBuffer[SSI_TX_BUFFER_NUM_SAMPLES * 2]; // * 2 to accomodate ster
 		if ((lpfMode_ == FilterMode::SVF_BAND) || (lpfMode_ == FilterMode::SVF_NOTCH)) {
 			lpfilter.svf.filterMono(startSample, endSample, sampleIncrement);
 		}
+		else if (lpfMode_ == FilterMode::JP_24DB) {
+			lpfilter.jp.filterMono(startSample, endSample, sampleIncrement);
+		}
 		else {
 			lpfilter.ladder.filterMono(startSample, endSample, sampleIncrement);
 		}
@@ -60,6 +63,9 @@ q31_t tempRenderBuffer[SSI_TX_BUFFER_NUM_SAMPLES * 2]; // * 2 to accomodate ster
 		if ((lpfMode_ == FilterMode::SVF_BAND) || (lpfMode_ == FilterMode::SVF_NOTCH)) {
 
 			lpfilter.svf.filterStereo(startSample, endSample);
+		}
+		else if (lpfMode_ == FilterMode::JP_24DB) {
+			lpfilter.jp.filterStereo(startSample, endSample);
 		}
 		else {
 
@@ -151,8 +157,15 @@ int32_t FilterSet::setConfig(q31_t lpfFrequency, q31_t lpfResonance, FilterMode 
 			}
 			filterGain = lpfilter.svf.configure(lpfFrequency, lpfResonance, lpfMode_, lpfMorph, filterGain);
 		}
+		else if (lpfMode_ == FilterMode::JP_24DB) {
+			if (lastLPFMode_ != FilterMode::JP_24DB) {
+				lpfilter.jp.reset(lastLPFMode_ == FilterMode::OFF);
+			}
+			filterGain = lpfilter.jp.configure(lpfFrequency, lpfResonance, lpfMode_, lpfMorph, filterGain);
+		}
 		else {
-			if (SpecificFilter(lastLPFMode_).getFamily() != FilterFamily::LP_LADDER) {
+			if (lastLPFMode_ == FilterMode::JP_24DB
+			    || SpecificFilter(lastLPFMode_).getFamily() != FilterFamily::LP_LADDER) {
 				lpfilter.ladder.reset(lastLPFMode_ == FilterMode::OFF);
 			}
 			filterGain = lpfilter.ladder.configure(lpfFrequency, lpfResonance, lpfMode_, lpfMorph, filterGain);

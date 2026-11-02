@@ -16,6 +16,7 @@
  */
 // Host tests for the JP-mode Super Saw (A1..A9 of the JP Super Saw plan, decimator, free-running phase).
 // Build: see run_tests.sh. Builds with public defaults unless <jp_osc_data/constants.h> is on the include path.
+#include "dsp/filter/jp_filter_core.h"
 #include "dsp/oscillators/jp_feedback.h"
 #include "dsp/oscillators/jp_supersaw.h"
 #include <cmath>
@@ -522,6 +523,46 @@ static void testFeedback() {
 	printf("  tap/fb maps, lease, energy, tap-difference ok\n");
 }
 
+static void testJpFilter() {
+	printf("JP filter: 24 dB cascade, exp cutoff, long ring at max res\n");
+	// f ≈ 2*sin(pi*1000/44100) ≈ 0.142, q31 ≈ 305000000
+	const int32_t f = 305000000;
+	int32_t l1 = 0, b1 = 0, l2 = 0, b2 = 0;
+	// Impulse
+	int32_t y0 = filtProcess(1 << 28, l1, b1, l2, b2, f, kJpFiltMaxDamp);
+	(void)y0;
+	int64_t eEarly = 0, eLate = 0;
+	// Low resonance should die in a few ms
+	for (int i = 0; i < 2000; i++) {
+		int32_t y = filtProcess(0, l1, b1, l2, b2, f, kJpFiltMaxDamp);
+		if (i < 64) {
+			eEarly += (int64_t)y * y >> 16;
+		}
+		if (i > 1800) {
+			eLate += (int64_t)y * y >> 16;
+		}
+	}
+	CHECK(eLate * 20 < eEarly + 1, "low-res ring did not die");
+
+	// Max resonance: ping and watch several seconds. Energy should remain.
+	l1 = b1 = l2 = b2 = 0;
+	filtProcess(1 << 28, l1, b1, l2, b2, f, kJpFiltMinDamp);
+	int64_t e1 = 0, e2 = 0;
+	const int sec = 44100;
+	for (int i = 0; i < sec * 3; i++) {
+		int32_t y = filtProcess(0, l1, b1, l2, b2, f, kJpFiltMinDamp);
+		if (i < 128) {
+			e1 += (int64_t)y * y >> 16;
+		}
+		if (i >= sec * 3 - 128) {
+			e2 += (int64_t)y * y >> 16;
+		}
+	}
+	CHECK(e2 > e1 / 20, "max-res ring died too fast (want several seconds)");
+	CHECK(std::abs(l2) <= (3 << 29) && std::abs(b2) <= (3 << 29), "max-res exceeded clip");
+	printf("  low-res dies; max-res still ringing at 3 s (e1=%lld e2=%lld)\n", (long long)e1, (long long)e2);
+}
+
 static void testPitchMapping() {
 	printf("Pitch: Deluge phase increment -> JP increment\n");
 	int snapped = 0;
@@ -553,6 +594,7 @@ int main() {
 	testLease();
 	testPitchMapping();
 	testFeedback();
+	testJpFilter();
 	printf(failures ? "FAILED: %d\n" : "ALL PASSED\n", failures);
 	return failures ? 1 : 0;
 }

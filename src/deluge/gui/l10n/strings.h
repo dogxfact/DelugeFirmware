@@ -213,6 +213,8 @@ enum class String : size_t {
 	STRING_FOR_SVF_BAND_SHORT,
 	STRING_FOR_SVF_NOTCH,
 	STRING_FOR_SVF_NOTCH_SHORT,
+	STRING_FOR_JP_24DB,
+	STRING_FOR_JP_24DB_SHORT,
 
 	// gui/menu_item/flash/status.h
 	STRING_FOR_FAST,

@@ -76,6 +76,7 @@ public:
 		    l10n::getView(STRING_FOR_DRIVE),
 		    l10n::getView(shortOpt ? STRING_FOR_SVF_BAND_SHORT : STRING_FOR_SVF_BAND),
 		    l10n::getView(shortOpt ? STRING_FOR_SVF_NOTCH_SHORT : STRING_FOR_SVF_NOTCH),
+		    l10n::getView(shortOpt ? STRING_FOR_JP_24DB_SHORT : STRING_FOR_JP_24DB),
 		    l10n::getView(STRING_FOR_OFF),
 		};
 	}

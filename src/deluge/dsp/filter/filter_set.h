@@ -19,6 +19,7 @@
 
 #include "definitions_cxx.hpp"
 #include "dsp/filter/hpladder.h"
+#include "dsp/filter/jp_cascade.h"
 #include "dsp/filter/lpladder.h"
 #include "dsp/filter/svf.h"
 #include "model/mod_controllable/filters/filter_config.h"
@@ -32,6 +33,7 @@ namespace deluge::dsp::filter {
 union LowPass {
 	LpLadderFilter ladder;
 	SVFilter svf;
+	JpCascadeFilter jp;
 	LowPass() {}
 };
 

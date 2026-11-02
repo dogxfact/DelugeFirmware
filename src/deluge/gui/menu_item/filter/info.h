@@ -52,9 +52,13 @@ public:
 			return util::to_underlying(soundEditor.currentModControllable->hpfMode) - kFirstHPFMode;
 		}
 		else {
-			// Off is located past the HPFLadder, which isn't an option for the low pass filter (should it be?)
-			int32_t selection = util::to_underlying(soundEditor.currentModControllable->lpfMode);
-			return std::min(selection, kNumLPFModes);
+			// Menu: 12/24/Drive/SVF-band/SVF-notch/JP-24/Off. JP_24DB sits after OFF in the enum.
+			::FilterMode mode = soundEditor.currentModControllable->lpfMode;
+			if (mode == ::FilterMode::JP_24DB) {
+				return kNumLPFModes;
+			}
+			int32_t selection = util::to_underlying(mode);
+			return std::min(selection, kNumLPFModes + 1);
 		}
 	}
 	void setMode(int32_t value) const { setModeForModControllable(value, soundEditor.currentModControllable); }
@@ -63,9 +67,12 @@ public:
 			modControllable->hpfMode = static_cast<FilterMode>(value + kFirstHPFMode);
 		}
 		else {
-			// num lpf modes counts off but there's HPF modes in the middle
-			if (value >= kNumLPFModes) {
+			// 0..4 existing LPF modes, 5 = JP 24dB, 6+ = Off
+			if (value > kNumLPFModes) {
 				modControllable->lpfMode = FilterMode::OFF;
+			}
+			else if (value == kNumLPFModes) {
+				modControllable->lpfMode = FilterMode::JP_24DB;
 			}
 			else {
 				modControllable->lpfMode = static_cast<FilterMode>(value);

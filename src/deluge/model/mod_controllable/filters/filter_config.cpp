@@ -11,7 +11,8 @@ EnumStringMap<FilterMode, kNumFilterModes> filterMap({{{FilterMode::TRANSISTOR_1
                                                        {FilterMode::SVF_BAND, "SVF_Band"},
                                                        {FilterMode::SVF_NOTCH, "SVF_Notch"},
                                                        {FilterMode::HPLADDER, "HPLadder"},
-                                                       {FilterMode::OFF, "Off"}}});
+                                                       {FilterMode::OFF, "Off"},
+                                                       {FilterMode::JP_24DB, "jp24dB"}}});
 
 EnumStringMap<FilterRoute, kNumFilterRoutes> routeMap({{
     {FilterRoute::LOW_TO_HIGH, "L2H"},
@@ -30,7 +31,7 @@ FilterRoute stringToFilterRoute(char const* string) {
 }
 
 FilterMode stringToLPFType(char const* string) {
-	return deluge::dsp::filter::filterMap(string);
+	return deluge::dsp::filter::filterMap(string, FilterMode::OFF);
 }
 char const* lpfTypeToString(FilterMode mode) {
 	return deluge::dsp::filter::filterMap(mode);

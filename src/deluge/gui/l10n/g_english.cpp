@@ -212,6 +212,8 @@ PLACE_SDRAM_DATA Language english{
         {STRING_FOR_SVF_BAND_SHORT, "BP"},
         {STRING_FOR_SVF_NOTCH, "SVF Notch"},
         {STRING_FOR_SVF_NOTCH_SHORT, "NTCH"},
+        {STRING_FOR_JP_24DB, "JP 24dB"},
+        {STRING_FOR_JP_24DB_SHORT, "JP24"},
         {STRING_FOR_HPLADDER, "HP Ladder"},
         {STRING_FOR_12DB_LADDER, "12dB Ladder"},
         {STRING_FOR_12DB_LADDER_SHORT, "12dB"},
