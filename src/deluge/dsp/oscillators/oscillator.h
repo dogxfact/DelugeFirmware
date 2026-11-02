@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include "dsp/oscillators/jp_feedback.h"
 #include "dsp/oscillators/jp_supersaw.h"
 #include "dsp/oscillators/supersaw.h"
 #include "storage/wave_table/wave_table.h"
@@ -32,7 +33,8 @@ public:
 	                      int32_t amplitudeIncrement, bool doOscSync, uint32_t resetterPhase,
 	                      uint32_t resetterPhaseIncrement, uint32_t retriggerPhase, int32_t waveIndexIncrement,
 	                      int sourceWaveIndexLastTime, WaveTable* waveTable, Supersaw::SidePhases* supersawPhases,
-	                      uint8_t jpMode = 0, jp::SuperSaw::State* jpState = nullptr);
+	                      uint8_t jpMode = 0, jp::SuperSaw::State* jpState = nullptr,
+	                      jp::Feedback::State* jpFeedback = nullptr);
 };
 
 } // namespace deluge::dsp

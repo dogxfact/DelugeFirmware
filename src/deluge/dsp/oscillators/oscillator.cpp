@@ -30,7 +30,27 @@ Oscillator::renderOsc(OscType type, int32_t amplitude, int32_t* bufferStart, int
                       int32_t amplitudeIncrement, bool doOscSync, uint32_t resetterPhase,
                       uint32_t resetterPhaseIncrement, uint32_t retriggerPhase, int32_t waveIndexIncrement,
                       int sourceWaveIndexLastTime, WaveTable* waveTable, Supersaw::SidePhases* supersawPhases,
-                      uint8_t jpMode, jp::SuperSaw::State* jpState) {
+                      uint8_t jpMode, jp::SuperSaw::State* jpState, jp::Feedback::State* jpFeedback) {
+
+	// JP-8000 Feedback Oscillator: pitched delay loop, two interpolated taps.
+	// Wave index = second tap, pulse width = feedback. No sync, no retrigger.
+	if (type == OscType::JP_FEEDBACK) {
+		int32_t tap = sourceWaveIndexLastTime + waveIndexIncrement * numSamples;
+		int32_t* renderBuffer = applyAmplitude ? oscSyncRenderingBuffer : bufferStart;
+		if (jpFeedback != nullptr) {
+			jp::Feedback::render(renderBuffer, numSamples, phaseIncrement, tap, pulseWidth, *jpFeedback);
+		}
+		else {
+			for (int32_t i = 0; i < numSamples; i++) {
+				renderBuffer[i] = 0;
+			}
+		}
+		if (applyAmplitude) {
+			applyAmplitudeVectorToBuffer(amplitude, numSamples, amplitudeIncrement, bufferStart,
+			                             oscSyncRenderingBuffer);
+		}
+		return;
+	}
 
 	// JP mode: the JP-8000 Super Saw, rendered at 88.2 kHz and decimated. Wave index is Detune, pulse width is
 	// Mix. No sync, no retrigger, no phase reset.

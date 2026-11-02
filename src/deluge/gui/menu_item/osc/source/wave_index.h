@@ -33,8 +33,8 @@ public:
 		if (sound->getSynthMode() == SynthMode::FM) {
 			return false;
 		}
-		// The supersaw uses it for spread
-		return source.oscType == OscType::SUPERSAW
+		// The supersaw uses it for spread; JP Feedback uses it for the second tap
+		return source.oscType == OscType::SUPERSAW || source.oscType == OscType::JP_FEEDBACK
 		       || (source.oscType == OscType::WAVETABLE && source.hasAtLeastOneAudioFileLoaded());
 	}
 

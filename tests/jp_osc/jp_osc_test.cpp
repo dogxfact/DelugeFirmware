@@ -16,6 +16,7 @@
  */
 // Host tests for the JP-mode Super Saw (A1..A9 of the JP Super Saw plan, decimator, free-running phase).
 // Build: see run_tests.sh. Builds with public defaults unless <jp_osc_data/constants.h> is on the include path.
+#include "dsp/oscillators/jp_feedback.h"
 #include "dsp/oscillators/jp_supersaw.h"
 #include <cmath>
 #include <complex>
@@ -462,6 +463,65 @@ static void testLease() {
 	printf("  lease identity and silent-gap advance ok\n");
 }
 
+static void testFeedback() {
+	printf("Feedback osc: taps, feedback, lease identity, bounds\n");
+	CHECK(Feedback::tapStep(-(1 << 30)) == 0 && Feedback::tapStep((1 << 30) - 1) == 127, "tap ends");
+	CHECK(Feedback::fbStep(0) == 0 && Feedback::fbStep(0x7fffffffu) == 127, "fb ends");
+
+	alignas(8) char key[8] = {};
+	Feedback::State* st = Feedback::lease(key);
+	CHECK(st != nullptr, "feedback lease failed");
+	if (st == nullptr) {
+		return;
+	}
+	int32_t buf[128];
+	uint32_t inc = 0x1000000; // ~261 Hz-ish at 44.1 kHz? 2^24 / 2^32 * 44100 ≈ 172 Hz
+	Feedback::render(buf, 128, inc, 0, 0x40000000, *st);
+	CHECK(st->seeded, "feedback did not seed");
+	int64_t energy = 0;
+	for (int i = 0; i < 128; i++) {
+		energy += (int64_t)buf[i] * buf[i] >> 16;
+	}
+	CHECK(energy > 0, "silent after seed+render");
+
+	// Same key keeps the delay contents
+	uint32_t write = st->write;
+	int32_t first = st->buf[write & (uint32_t)kFbDelayMask];
+	Feedback::unlease(st);
+	Feedback::State* st2 = Feedback::lease(key);
+	CHECK(st2 == st && st2->write == write && st2->buf[write & (uint32_t)kFbDelayMask] == first,
+	      "feedback lease reset the delay");
+
+	// High vs low feedback: both bounded
+	int32_t hi[64], lo[64];
+	Feedback::State a, b;
+	Feedback::seed(a, 1);
+	Feedback::seed(b, 1);
+	Feedback::render(hi, 64, inc, 1 << 29, 0x7fffffff, a);
+	Feedback::render(lo, 64, inc, 1 << 29, 0, b);
+	int hiE = 0, loE = 0;
+	for (int i = 0; i < 64; i++) {
+		hiE += hi[i] != 0;
+		loE += lo[i] != 0;
+	}
+	CHECK(hiE > 0 && loE > 0, "a feedback setting was silent");
+
+	// Changing tap position changes the output
+	Feedback::State c, d;
+	Feedback::seed(c, 99);
+	d = c;
+	int32_t t0[64], t1[64];
+	Feedback::render(t0, 64, inc, -(1 << 30), 0x60000000, c);
+	Feedback::render(t1, 64, inc, (1 << 30) - 1, 0x60000000, d);
+	int differ = 0;
+	for (int i = 0; i < 64; i++) {
+		differ += t0[i] != t1[i];
+	}
+	CHECK(differ > 0, "tap position had no effect");
+	Feedback::unlease(st2);
+	printf("  tap/fb maps, lease, energy, tap-difference ok\n");
+}
+
 static void testPitchMapping() {
 	printf("Pitch: Deluge phase increment -> JP increment\n");
 	int snapped = 0;
@@ -492,6 +552,7 @@ int main() {
 	testPhase();
 	testLease();
 	testPitchMapping();
+	testFeedback();
 	printf(failures ? "FAILED: %d\n" : "ALL PASSED\n", failures);
 	return failures ? 1 : 0;
 }

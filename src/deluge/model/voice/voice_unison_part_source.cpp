@@ -97,6 +97,9 @@ bool VoiceUnisonPartSource::noteOn(Voice* voice, Source* source, VoiceSamplePlay
 			// unassign and after an in-place Voice steal. No heap work in the audio path.
 			jpSuperSaw = deluge::dsp::jp::SuperSaw::lease(this, AudioEngine::audioSampleTimer);
 		}
+		if (synthMode != SynthMode::FM && source->oscType == OscType::JP_FEEDBACK && jpFeedback == nullptr) {
+			jpFeedback = deluge::dsp::jp::Feedback::lease(this);
+		}
 	}
 
 	if (resetEverything) {
@@ -117,6 +120,10 @@ void VoiceUnisonPartSource::unassign(bool deletingSong) {
 	if (jpSuperSaw != nullptr) {
 		deluge::dsp::jp::SuperSaw::unlease(jpSuperSaw, AudioEngine::audioSampleTimer);
 		jpSuperSaw = nullptr;
+	}
+	if (jpFeedback != nullptr) {
+		deluge::dsp::jp::Feedback::unlease(jpFeedback);
+		jpFeedback = nullptr;
 	}
 
 	if (dxVoice != nullptr) {

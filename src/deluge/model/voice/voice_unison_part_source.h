@@ -18,6 +18,7 @@
 #pragma once
 
 #include "definitions_cxx.hpp"
+#include "dsp/oscillators/jp_feedback.h"
 #include "dsp/oscillators/jp_supersaw.h"
 #include "dsp/oscillators/supersaw.h"
 #include "model/sample/sample.h"
@@ -48,6 +49,8 @@ public:
 	// JP mode: lease of a free-running Super Saw (same address always gets the same counters).
 	// Null if JP mode is off or the bank is full; then the stock supersaw renders.
 	gsl::owner<deluge::dsp::jp::SuperSaw::State*> jpSuperSaw = nullptr;
+	// JP Feedback Oscillator delay loop. Same lease rules; null if the bank is full.
+	gsl::owner<deluge::dsp::jp::Feedback::State*> jpFeedback = nullptr;
 	uint32_t phaseIncrementStoredValue;
 	int32_t carrierFeedback;
 	bool active;

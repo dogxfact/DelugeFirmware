@@ -363,6 +363,7 @@ enum class OscType : uint8_t {
 	SAW,
 	ANALOG_SAW_2,
 	SUPERSAW,
+	JP_FEEDBACK,
 	WAVETABLE,
 	SAMPLE,
 	DX7,

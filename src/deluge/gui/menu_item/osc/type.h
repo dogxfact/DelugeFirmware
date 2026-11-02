@@ -88,6 +88,7 @@ public:
 		    l10n::getView(STRING_FOR_SAW),           //<
 		    l10n::getView(STRING_FOR_ANALOG_SAW),    //<
 		    l10n::getView(STRING_FOR_SUPERSAW),      //<
+		    l10n::getView(STRING_FOR_JP_FEEDBACK),   //<
 		    l10n::getView(STRING_FOR_WAVETABLE),     //<
 		};
 
@@ -149,6 +150,7 @@ public:
 			case OscType::SAW:
 			case OscType::ANALOG_SAW_2:
 			case OscType::SUPERSAW:
+			case OscType::JP_FEEDBACK:
 				return OLED::sawIcon;
 			case OscType::SAMPLE:
 				return OLED::sampleIcon;
@@ -165,11 +167,13 @@ public:
 
 		image.drawIconCentered(icon, slot.start_x, slot.width, slot.start_y + kHorizontalMenuSlotYOffset + 2);
 
-		if (osc_type == OscType::ANALOG_SQUARE || osc_type == OscType::ANALOG_SAW_2 || osc_type == OscType::SUPERSAW) {
+		if (osc_type == OscType::ANALOG_SQUARE || osc_type == OscType::ANALOG_SAW_2 || osc_type == OscType::SUPERSAW
+		    || osc_type == OscType::JP_FEEDBACK) {
 			const int32_t x = slot.start_x + 4;
 			constexpr int32_t y = OLED_MAIN_HEIGHT_PIXELS - kTextSpacingY - 8;
 			image.clearAreaExact(x - 1, y - 1, x + kTextSpacingX + 1, y + kTextSpacingY + 1);
-			image.drawChar(osc_type == OscType::SUPERSAW ? 'S' : 'A', x, y, kTextSpacingX, kTextSpacingY);
+			const char badge = osc_type == OscType::SUPERSAW ? 'S' : osc_type == OscType::JP_FEEDBACK ? 'F' : 'A';
+			image.drawChar(badge, x, y, kTextSpacingX, kTextSpacingY);
 		}
 	}
 

@@ -16,7 +16,8 @@
  */
 #pragma once
 
-// Constants for the JP-8000 style oscillators (JP mode of OscType::SUPERSAW).
+// Constants for the JP-8000 style oscillators (JP mode of OscType::SUPERSAW, OscType::JP_FEEDBACK)
+// and the JP-style filter / effects.
 //
 // Two builds:
 //  - Public defaults (this file alone). Values come from published descriptions of the JP-8000 Super Saw:
@@ -124,5 +125,25 @@ inline constexpr int32_t kHpfOut = 120;
 inline constexpr const uint32_t* kPitchTable = nullptr;
 inline constexpr int32_t kPitchTableTopNote = 0;
 #endif
+
+// --- Feedback Oscillator -------------------------------------------------------
+// Published: Roland JP-8000 Owner's Manual (Feedback Osc; CTRL 1 = Harmonics,
+// CTRL 2 = Feedback). Public write-ups describe a pitched delay loop with two
+// interpolated taps (second tap position = CTRL 1, feedback gain = CTRL 2).
+// Delay length, excitation and the max feedback word are our defaults (not
+// published, not the JP's values). Optional overrides: jp_osc_data/feedback.h.
+
+#if __has_include(<jp_osc_data/feedback.h>)
+#include <jp_osc_data/feedback.h>
+inline constexpr int32_t kFbDelaySize = jp_osc_data::kFbDelaySize;
+inline constexpr int32_t kFbMaxFeedback = jp_osc_data::kFbMaxFeedback;
+inline constexpr int32_t kFbExciteShift = jp_osc_data::kFbExciteShift;
+#else
+inline constexpr int32_t kFbDelaySize = 4096;     // 44.1 kHz samples; notes below ~10.8 Hz clamp
+inline constexpr int32_t kFbMaxFeedback = 2130706432; // ~0.992 Q31: self-oscillates, saturates
+inline constexpr int32_t kFbExciteShift = 6;      // quiet saw into the loop (placeholder)
+#endif
+inline constexpr int32_t kFbDelayMask = kFbDelaySize - 1;
+inline constexpr int32_t kFbBankSlots = 48;
 
 } // namespace deluge::dsp::jp

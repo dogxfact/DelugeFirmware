@@ -1360,14 +1360,16 @@ cantBeDoingOscSyncForFirstOsc:
 					    phaseIncrements[s], pulseWidth, &unisonParts[u].sources[s].oscPos, false, 0,
 					    doingOscSyncThisOscillator, oscSyncPos[u], phaseIncrements[0], sound.oscRetriggerPhase[s],
 					    sourceWaveIndexIncrements[s], sourceWaveIndexesLastTime[s], waveTable,
-					    &unisonParts[u].sources[s].supersawPhases);
+					    &unisonParts[u].sources[s].supersawPhases, sound.sources[s].jpMode,
+					    unisonParts[u].sources[s].jpSuperSaw, unisonParts[u].sources[s].jpFeedback);
 
 					// Sine and triangle waves come out bigger in fixed-amplitude rendering (for arbitrary reasons), so
 					// we need to compensate
 					if (oscType == OscType::SAW || oscType == OscType::ANALOG_SAW_2) {
 						amplitudeForRingMod <<= 1;
 					}
-					else if (oscType == OscType::WAVETABLE || oscType == OscType::SUPERSAW) {
+					else if (oscType == OscType::WAVETABLE || oscType == OscType::SUPERSAW
+					         || oscType == OscType::JP_FEEDBACK) {
 						amplitudeForRingMod <<= 2;
 					}
 				}
@@ -2500,7 +2502,8 @@ dontUseCache: {}
 			    pulseWidth, &unisonParts[u].sources[s].oscPos, true, amplitudeIncrement, doOscSync,
 			    oscSyncPosThisUnison, oscSyncPhaseIncrementsThisUnison, oscRetriggerPhase, waveIndexIncrement,
 			    sourceWaveIndexesLastTime[s], waveTable, &unisonParts[u].sources[s].supersawPhases,
-			    sound.sources[s].jpMode, unisonParts[u].sources[s].jpSuperSaw);
+			    sound.sources[s].jpMode, unisonParts[u].sources[s].jpSuperSaw,
+			    unisonParts[u].sources[s].jpFeedback);
 
 			if (stereoBuffer) {
 				// TODO: if render buffer was typed we could use addPannedMono()
