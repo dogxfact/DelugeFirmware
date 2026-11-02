@@ -733,7 +733,7 @@ void GlobalEffectable::ensureModFXParamIsValid() {
 		}
 		else if (currentModFXParam == ModFXParam::OFFSET) {
 			if (modFXType_ != ModFXType::CHORUS && modFXType_ != ModFXType::CHORUS_STEREO
-			    && modFXType_ != ModFXType::GRAIN) {
+			    && modFXType_ != ModFXType::GRAIN && modFXType_ != ModFXType::JP_CHORUS) {
 				goto ohNo;
 			}
 		}
@@ -1162,7 +1162,7 @@ void GlobalEffectable::processFXForGlobalEffectable(std::span<StereoSample> buff
 	// TODO: this saves a tiny amount of memory at the cost of needing allocations during the audio render cycle...
 	// seems kinda dumb
 	if (util::one_of(modFXTypeNow, {ModFXType::CHORUS_STEREO, ModFXType::CHORUS, ModFXType::FLANGER, ModFXType::WARBLE,
-	                                ModFXType::DIMENSION})) {
+	                                ModFXType::DIMENSION, ModFXType::JP_CHORUS})) {
 		modfx.setupBuffer();
 		disableGrain();
 	}
@@ -1194,6 +1194,7 @@ deluge::vector<std::string_view> getModNames() {
 	    l10n::getView(STRING_FOR_WARBLE),
 	    l10n::getView(STRING_FOR_DIMENSION), //<
 	    l10n::getView(STRING_FOR_GRAIN),     //<
+	    l10n::getView(STRING_FOR_JP_CHORUS),
 	};
 }
 
@@ -1248,6 +1249,8 @@ const char* modFXToString(ModFXType type) {
 		return l10n::get(STRING_FOR_GRAIN);
 	case ModFXType::WARBLE:
 		return l10n::get(STRING_FOR_WARBLE);
+	case ModFXType::JP_CHORUS:
+		return l10n::get(STRING_FOR_JP_CHORUS);
 	default:
 		return l10n::get(STRING_FOR_DISABLED);
 	}

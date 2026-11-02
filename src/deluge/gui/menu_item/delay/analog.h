@@ -52,7 +52,8 @@ public:
 	deluge::vector<std::string_view> getOptions(OptType optType) override {
 		using enum l10n::String;
 		return {l10n::getView(STRING_FOR_DIGITAL),
-		        l10n::getView(optType == OptType::SHORT ? STRING_FOR_ANALOG_SHORT : STRING_FOR_ANALOG)};
+		        l10n::getView(optType == OptType::SHORT ? STRING_FOR_ANALOG_SHORT : STRING_FOR_ANALOG),
+		        l10n::getView(STRING_FOR_JP_DELAY)};
 	}
 };
 

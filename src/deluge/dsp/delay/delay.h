@@ -64,7 +64,9 @@ public:
 	uint32_t countCyclesWithoutChange;
 	int32_t userRateLastTime;
 	bool pingPong = true;
-	bool analog = false;
+	// 0 = digital, 1 = analog, 2 = JP-style digital (darker 1-pole in the loop).
+	// Was a bool; 0/1 still mean the same so existing songs load unchanged.
+	uint8_t analog = 0;
 
 	SyncType syncType = SYNC_TYPE_EVEN;
 
@@ -75,6 +77,8 @@ public:
 
 	int32_t postLPFL;
 	int32_t postLPFR;
+	int32_t jpDelayLpfL = 0;
+	int32_t jpDelayLpfR = 0;
 
 	int32_t prevFeedback = 0;
 

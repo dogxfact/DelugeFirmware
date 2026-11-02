@@ -17,6 +17,7 @@
 
 #include "dsp/delay/delay.h"
 #include "definitions_cxx.hpp"
+#include "dsp/oscillators/jp_osc_constants.h"
 #include "dsp/delay/delay_buffer.h"
 #include "dsp/stereo_sample.h"
 #include "io/debug/log.h"
@@ -46,6 +47,8 @@ setupSecondaryBuffer:
 		prepareToBeginWriting();
 		postLPFL = 0;
 		postLPFR = 0;
+		jpDelayLpfL = 0;
+		jpDelayLpfR = 0;
 		return;
 	}
 
@@ -200,6 +203,8 @@ void Delay::discardBuffers() {
 	secondaryBuffer.discard();
 	prevFeedback = 0;
 	repeatsUntilAbandon = 0;
+	jpDelayLpfL = 0;
+	jpDelayLpfR = 0;
 }
 
 void Delay::initializeSecondaryBuffer(int32_t newNativeRate, bool makeNativeRatePreciseRelativeToOtherBuffer) {
@@ -327,7 +332,21 @@ void Delay::process(std::span<StereoSample> buffer, const State& delayWorkingSta
 		}
 	}
 
-	if (analog) {
+	if (analog == 2) {
+		// JP-style: one-pole LPF in the loop, no tanh. Darker digital repeats.
+		const int32_t shift = deluge::dsp::jp::kJpDelayLpfShift;
+		for (StereoSample& sample : working_buffer) {
+			jpDelayLpfL += (sample.l - jpDelayLpfL) >> shift;
+			jpDelayLpfR += (sample.r - jpDelayLpfR) >> shift;
+			sample.l =
+			    signed_saturate<32 - 3>(multiply_32x32_rshift32(jpDelayLpfL, delayWorkingState.delayFeedbackAmount))
+			    << 2;
+			sample.r =
+			    signed_saturate<32 - 3>(multiply_32x32_rshift32(jpDelayLpfR, delayWorkingState.delayFeedbackAmount))
+			    << 2;
+		}
+	}
+	else if (analog == 1) {
 
 		ir_processor.process(working_buffer);
 

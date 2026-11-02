@@ -821,7 +821,7 @@ doReadPatchedParam:
 			}
 			else if (!strcmp(tagName, "analog")) {
 				int32_t contents = reader.readTagOrAttributeValueInt();
-				delay.analog = static_cast<bool>(std::clamp(contents, 0_i32, 1_i32));
+				delay.analog = static_cast<uint8_t>(std::clamp(contents, 0_i32, 2_i32));
 				reader.exitTag("analog");
 			}
 			else if (!strcmp(tagName, "syncType")) {
@@ -1333,7 +1333,7 @@ void ModControllableAudio::switchDelayPingPong() {
 }
 
 void ModControllableAudio::switchDelayAnalog() {
-	delay.analog = !delay.analog;
+	delay.analog = static_cast<uint8_t>((delay.analog + 1) % 3);
 }
 
 char const* ModControllableAudio::getDelayTypeDisplayName() {
@@ -1341,6 +1341,8 @@ char const* ModControllableAudio::getDelayTypeDisplayName() {
 		using enum deluge::l10n::String;
 	case 0:
 		return l10n::get(STRING_FOR_DIGITAL_DELAY);
+	case 2:
+		return l10n::get(STRING_FOR_JP_DELAY);
 	default:
 		return l10n::get(STRING_FOR_ANALOG_DELAY);
 	}

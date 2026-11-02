@@ -417,8 +417,9 @@ enum class ModFXType : uint8_t {
 	WARBLE,
 	DIMENSION,
 	GRAIN, // Look below if you want to add another one
+	JP_CHORUS,
 };
-constexpr int32_t kNumModFXTypes = util::to_underlying(ModFXType::GRAIN) + 1;
+constexpr int32_t kNumModFXTypes = util::to_underlying(ModFXType::JP_CHORUS) + 1;
 
 enum class SynthMode : uint8_t {
 	SUBTRACTIVE,

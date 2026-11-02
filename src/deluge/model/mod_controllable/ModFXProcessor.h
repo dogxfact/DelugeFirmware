@@ -69,6 +69,8 @@ public:
 	LFO modFXLFOStereo;
 	void processModFX(std::span<StereoSample> buffer, const ModFXType& modFXType, int32_t modFXRate, int32_t modFXDepth,
 	                  int32_t* postFXVolume, UnpatchedParamSet* unpatchedParams, bool anySoundComingIn);
+	void processJpChorus(std::span<StereoSample> buffer, int32_t modFXRate, int32_t modFXDelayOffset,
+	                     int32_t thisModFXDelayDepth);
 	void resetMemory();
 	void setupBuffer();
 	void disableBuffer();

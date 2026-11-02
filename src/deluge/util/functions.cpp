@@ -907,6 +907,9 @@ char const* fxTypeToString(ModFXType fxType) {
 	case ModFXType::PHASER:
 		return "phaser";
 
+	case ModFXType::JP_CHORUS:
+		return "jpChorus";
+
 	default:
 		return "none";
 	}
@@ -933,6 +936,9 @@ ModFXType stringToFXType(char const* string) {
 	}
 	else if (!strcmp(string, "phaser")) {
 		return ModFXType::PHASER;
+	}
+	else if (!strcmp(string, "jpChorus")) {
+		return ModFXType::JP_CHORUS;
 	}
 	else {
 		return ModFXType::NONE;

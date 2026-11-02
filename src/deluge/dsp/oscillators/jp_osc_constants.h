@@ -167,4 +167,19 @@ inline constexpr int32_t kJpFiltMinDamp = 220000;
 inline constexpr int32_t kJpFiltMaxDamp = 1073741824; // 0.5
 #endif
 
+// --- JP-style chorus / delay ---------------------------------------------------
+// Published: JP-8000 chorus is a 3-stage chorus (Roland manual / common
+// descriptions). Delay is a digital delay with a darker repeat. Tap offsets
+// and the delay LPF shift are our defaults.
+#if __has_include(<jp_osc_data/fx.h>)
+#include <jp_osc_data/fx.h>
+inline constexpr int32_t kJpChorusTap2 = jp_osc_data::kJpChorusTap2;
+inline constexpr int32_t kJpChorusTap3 = jp_osc_data::kJpChorusTap3;
+inline constexpr int32_t kJpDelayLpfShift = jp_osc_data::kJpDelayLpfShift;
+#else
+inline constexpr int32_t kJpChorusTap2 = 3; // extra delay >> this, placeholder
+inline constexpr int32_t kJpChorusTap3 = 2;
+inline constexpr int32_t kJpDelayLpfShift = 3;
+#endif
+
 } // namespace deluge::dsp::jp

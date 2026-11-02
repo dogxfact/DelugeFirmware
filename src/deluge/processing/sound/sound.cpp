@@ -333,7 +333,7 @@ ModFXType Sound::getModFXType() {
 bool Sound::setModFXType(ModFXType newType) {
 
 	if (util::one_of(newType, {ModFXType::FLANGER, ModFXType::CHORUS, ModFXType::CHORUS_STEREO, ModFXType::WARBLE,
-	                           ModFXType::DIMENSION})) {
+	                           ModFXType::DIMENSION, ModFXType::JP_CHORUS})) {
 		modfx.setupBuffer();
 		disableGrain();
 	}
@@ -2202,6 +2202,7 @@ doCutModFXTail:
 					case ModFXType::CHORUS:
 						[[fallthrough]];
 					case ModFXType::CHORUS_STEREO:
+					case ModFXType::JP_CHORUS:
 						waitSamplesModfx = 20 * 44;
 						break;
 					case ModFXType::GRAIN:

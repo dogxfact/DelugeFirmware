@@ -17,6 +17,7 @@
 
 #include "ModFXProcessor.h"
 #include "definitions_cxx.hpp"
+#include "dsp/oscillators/jp_osc_constants.h"
 #include "mem_functions.h"
 #include "memory/general_memory_allocator.h"
 #include "modulation/params/param_set.h"
@@ -44,7 +45,7 @@ void ModFXProcessor::processModFX(std::span<StereoSample> buffer, const ModFXTyp
 			                    modFXDelayOffset, thisModFXDelayDepth, feedback);
 		}
 		else if (modFXType == ModFXType::CHORUS || modFXType == ModFXType::CHORUS_STEREO
-		         || modFXType == ModFXType::DIMENSION) {
+		         || modFXType == ModFXType::DIMENSION || modFXType == ModFXType::JP_CHORUS) {
 			setupChorus(modFXType, modFXDepth, postFXVolume, unpatchedParams, modFXLFOWaveType, modFXDelayOffset,
 			            thisModFXDelayDepth);
 		}
@@ -75,6 +76,11 @@ void ModFXProcessor::processModFX(std::span<StereoSample> buffer, const ModFXTyp
 			                                      thisModFXDelayDepth, feedback, AudioEngine::renderInStereo);
 			break;
 		case ModFXType::GRAIN:
+			break;
+		case ModFXType::JP_CHORUS:
+			if (modFXBuffer) {
+				processJpChorus(buffer, modFXRate, modFXDelayOffset, thisModFXDelayDepth);
+			}
 			break;
 		case ModFXType::DIMENSION:
 			processModFXBuffer<ModFXType::DIMENSION>(buffer, modFXRate, modFXDepth, modFXLFOWaveType, modFXDelayOffset,
@@ -265,6 +271,42 @@ StereoSample ModFXProcessor::processOnePhaserSample(StereoSample sample, int32_t
 	sample.r += phaserMemory.r;
 
 	return sample;
+}
+
+void ModFXProcessor::processJpChorus(std::span<StereoSample> buffer, int32_t modFXRate, int32_t modFXDelayOffset,
+                                     int32_t thisModFXDelayDepth) {
+	// Three interpolated taps (published JP-8000 chorus is 3-stage). One sine LFO;
+	// taps 2/3 use halved and inverted LFO plus fixed extra delay.
+	auto readTap = [&](int32_t delayTime, bool left) -> int32_t {
+		if (delayTime < 0) {
+			delayTime = 0;
+		}
+		if (delayTime > kModFXMaxDelay) {
+			delayTime = kModFXMaxDelay;
+		}
+		int32_t strength2 = (delayTime & 65535) << 15;
+		int32_t strength1 = (65535 << 15) - strength2;
+		int32_t pos = modFXBufferWriteIndex - (delayTime >> 16);
+		int32_t a = left ? modFXBuffer[pos & kModFXBufferIndexMask].l
+		                 : modFXBuffer[pos & kModFXBufferIndexMask].r;
+		int32_t b = left ? modFXBuffer[(pos - 1) & kModFXBufferIndexMask].l
+		                 : modFXBuffer[(pos - 1) & kModFXBufferIndexMask].r;
+		return multiply_32x32_rshift32_rounded(a, strength1) + multiply_32x32_rshift32_rounded(b, strength2);
+	};
+
+	for (StereoSample& sample : buffer) {
+		int32_t lfo = modFXLFO.render(1, LFOType::SINE, modFXRate);
+		int32_t d0 = multiply_32x32_rshift32(lfo, thisModFXDelayDepth) + modFXDelayOffset;
+		int32_t d1 = multiply_32x32_rshift32(lfo >> 1, thisModFXDelayDepth) + (modFXDelayOffset >> deluge::dsp::jp::kJpChorusTap2);
+		int32_t d2 = multiply_32x32_rshift32(-lfo, thisModFXDelayDepth) + (modFXDelayOffset >> deluge::dsp::jp::kJpChorusTap3);
+		int32_t wetL = (readTap(d0, true) + readTap(d1, true) + readTap(d2, true));
+		int32_t wetR = (readTap(d0, false) + readTap(d1, false) + readTap(d2, false));
+		modFXBuffer[modFXBufferWriteIndex].l = sample.l;
+		modFXBuffer[modFXBufferWriteIndex].r = sample.r;
+		sample.l += wetL;
+		sample.r += wetR;
+		modFXBufferWriteIndex = (modFXBufferWriteIndex + 1) & kModFXBufferIndexMask;
+	}
 }
 
 void ModFXProcessor::resetMemory() {
