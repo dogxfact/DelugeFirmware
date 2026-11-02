@@ -215,7 +215,7 @@ inline int32x4_t movingBlock(Core& core, const Controls& controls, int32_t pitch
 }
 #endif
 
-uint32_t seedState = 0x9e3779b9;
+uint32_t ssSeedState = 0x9e3779b9;
 
 } // namespace
 
@@ -351,23 +351,23 @@ namespace {
 // reseeds every note. Slots here keep their Core after unlease. Key is the VoiceUnisonPartSource
 // address, which is stable across in-place Voice steals.
 constexpr int32_t kBankSlots = 48;
-struct Slot {
+struct SsSlot {
 	SuperSaw::State state;
 	const void* key = nullptr;
 	bool leased = false;
 	uint32_t lastNow = 0;
 };
-Slot bank[kBankSlots];
+SsSlot ssBank[kBankSlots];
 } // namespace
 
 SuperSaw::State* SuperSaw::lease(const void* key, uint32_t nowSamples) {
 	if (key == nullptr) {
 		return nullptr;
 	}
-	Slot* found = nullptr;
-	Slot* unused = nullptr;
-	Slot* idle = nullptr;
-	for (Slot& slot : bank) {
+	SsSlot* found = nullptr;
+	SsSlot* unused = nullptr;
+	SsSlot* idle = nullptr;
+	for (SsSlot& slot : ssBank) {
 		if (slot.key == key) {
 			found = &slot;
 			break;
@@ -379,7 +379,7 @@ SuperSaw::State* SuperSaw::lease(const void* key, uint32_t nowSamples) {
 			idle = &slot;
 		}
 	}
-	Slot* slot = found != nullptr ? found : (unused != nullptr ? unused : idle);
+	SsSlot* slot = found != nullptr ? found : (unused != nullptr ? unused : idle);
 	if (slot == nullptr) {
 		return nullptr; // bank full: caller falls back to the stock supersaw
 	}
@@ -404,7 +404,7 @@ void SuperSaw::unlease(State* state, uint32_t nowSamples) {
 	if (state == nullptr) {
 		return;
 	}
-	for (Slot& slot : bank) {
+	for (SsSlot& slot : ssBank) {
 		if (&slot.state == state) {
 			slot.leased = false;
 			slot.lastNow = nowSamples;
@@ -418,8 +418,8 @@ void SuperSaw::render(int32_t* buffer, int32_t numSamples, uint32_t phaseIncreme
 	const Controls controls{pitchFromPhaseIncrement(phaseIncrement), detuneTarget(detuneStep(waveIndex)),
 	                        mixTarget(mixStep(pulseWidth))};
 	if (!state.seeded) {
-		seedState = seedState * 1664525u + 1013904223u;
-		seed(state, controls, seedState | 1u);
+		ssSeedState = ssSeedState * 1664525u + 1013904223u;
+		seed(state, controls, ssSeedState | 1u);
 	}
 	state.lastPitch = controls.pitch;
 

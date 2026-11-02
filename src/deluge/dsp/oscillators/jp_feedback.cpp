@@ -56,14 +56,14 @@ uint32_t period16FromIncrement(uint32_t phaseIncrement) {
 	return static_cast<uint32_t>(p);
 }
 
-struct Slot {
+struct FbSlot {
 	Feedback::State state;
 	const void* key = nullptr;
 	bool leased = false;
 };
 
-PLACE_SDRAM_BSS Slot bank[kFbBankSlots];
-uint32_t seedState = 0x243f6a88;
+PLACE_SDRAM_BSS FbSlot fbBank[kFbBankSlots];
+uint32_t fbSeedState = 0x243f6a88;
 
 } // namespace
 
@@ -71,10 +71,10 @@ Feedback::State* Feedback::lease(const void* key) {
 	if (key == nullptr) {
 		return nullptr;
 	}
-	Slot* found = nullptr;
-	Slot* unused = nullptr;
-	Slot* idle = nullptr;
-	for (Slot& slot : bank) {
+	FbSlot* found = nullptr;
+	FbSlot* unused = nullptr;
+	FbSlot* idle = nullptr;
+	for (FbSlot& slot : fbBank) {
 		if (slot.key == key) {
 			found = &slot;
 			break;
@@ -86,7 +86,7 @@ Feedback::State* Feedback::lease(const void* key) {
 			idle = &slot;
 		}
 	}
-	Slot* slot = found != nullptr ? found : (unused != nullptr ? unused : idle);
+	FbSlot* slot = found != nullptr ? found : (unused != nullptr ? unused : idle);
 	if (slot == nullptr) {
 		return nullptr;
 	}
@@ -101,7 +101,7 @@ void Feedback::unlease(State* state) {
 	if (state == nullptr) {
 		return;
 	}
-	for (Slot& slot : bank) {
+	for (FbSlot& slot : fbBank) {
 		if (&slot.state == state) {
 			slot.leased = false;
 			return;
@@ -125,8 +125,8 @@ void Feedback::seed(State& state, uint32_t random) {
 void Feedback::render(int32_t* buffer, int32_t numSamples, uint32_t phaseIncrement, int32_t waveIndex,
                       uint32_t pulseWidth, State& state) {
 	if (!state.seeded) {
-		seedState = seedState * 1664525u + 1013904223u;
-		seed(state, seedState | 1u);
+		fbSeedState = fbSeedState * 1664525u + 1013904223u;
+		seed(state, fbSeedState | 1u);
 	}
 
 	const uint32_t period16 = period16FromIncrement(phaseIncrement);
