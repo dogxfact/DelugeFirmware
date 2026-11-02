@@ -63,35 +63,45 @@ struct Derived {
 	explicit Derived(int32_t pitch_) : pitch(pitch_), hpf(sat24(mulShift(pitch_, kHpfPitchMul, 6))) {}
 };
 
-inline void increments(const Core& core, int32_t pitch, int32_t* inc) {
-	SplitCoef detune(core.detune);
-	int32_t base = signExtend30(detune.apply(pitch, 7));
-	int32_t baseSat = sat24(base);
-	inc[0] = pitch;
-	inc[1] = pitch + base;
+// Counter steps (increment << 8). Only the low 24 bits of an increment reach a counter, so the products are
+// taken mod 2^32: bits 7..30 of (kDetuneTable[i] * base) are all that survive the >> 7 and << 8.
+inline void steps(int32_t detune, int32_t pitch, uint32_t* d) {
+	SplitCoef split(detune);
+	int32_t base = split.apply(pitch, 7);
+	uint32_t baseSat = static_cast<uint32_t>(sat24(signExtend30(base)));
+	d[0] = static_cast<uint32_t>(pitch) << 8;
+	d[1] = static_cast<uint32_t>(pitch + base) << 8;
 	for (int32_t i = 2; i < SuperSaw::kNumSaws; i++) {
-		inc[i] = pitch + static_cast<int32_t>((static_cast<int64_t>(kDetuneTable[i]) * baseSat) >> 7);
+		int32_t x = static_cast<int32_t>(static_cast<uint32_t>(kDetuneTable[i]) * baseSat) >> 7;
+		d[i] = static_cast<uint32_t>(pitch + x) << 8;
 	}
 }
 
-// Two 2-pole sections in one structure, cutoff word from the pitch; four 24-bit states.
-inline int32_t highPass(int32_t* h, const SplitCoef& k, int32_t in) {
-	int32_t a = h[0];
-	int32_t b = h[1];
-	int32_t c = h[2];
-	int32_t d = h[3];
-	int32_t b2 = sat24(k.apply(a, 7) + b);
-	int32_t u = sat24(b2 + a);
-	int32_t d2 = sat24(k.apply(c, 6) + d);
-	int32_t w = sat24(d2 + c);
-	int32_t x = sat24(-u + mulShift(in, kHpfIn, 6));
-	int32_t y = sat24(-w + mulShift(x, kHpfMid, 6));
-	h[0] = sat24(k.apply(x, 6) + a);
-	h[1] = b2;
-	h[2] = sat24(c + k.apply(y, 6));
-	h[3] = d2;
-	return sat24(mulShift(y, kHpfOut, 6));
-}
+// Two 2-pole sections in one structure, cutoff word from the pitch; four 24-bit states. Kept in locals across
+// a block so they stay in registers.
+struct Hpf {
+	int32_t a, b, c, d;
+	explicit Hpf(const int32_t* h) : a(h[0]), b(h[1]), c(h[2]), d(h[3]) {}
+	void save(int32_t* h) const {
+		h[0] = a;
+		h[1] = b;
+		h[2] = c;
+		h[3] = d;
+	}
+	int32_t run(const SplitCoef& k, int32_t in) {
+		int32_t b2 = sat24(k.apply(a, 7) + b);
+		int32_t u = sat24(b2 + a);
+		int32_t d2 = sat24(k.apply(c, 6) + d);
+		int32_t w = sat24(d2 + c);
+		int32_t x = sat24(-u + mulShift(in, kHpfIn, 6));
+		int32_t y = sat24(-w + mulShift(x, kHpfMid, 6));
+		a = sat24(k.apply(x, 6) + a);
+		b = b2;
+		c = sat24(c + k.apply(y, 6));
+		d = d2;
+		return sat24(mulShift(y, kHpfOut, 6));
+	}
+};
 
 inline int32_t levelStage(int32_t sum, const SplitCoef& level) {
 	if constexpr (kLevelCompensation) {
@@ -100,30 +110,110 @@ inline int32_t levelStage(int32_t sum, const SplitCoef& level) {
 	return sum;
 }
 
-inline int32_t frameWith(Core& core, const Controls& controls, const Derived& derived) {
+inline void smooth(Core& core, const Controls& controls) {
 	core.detune = sat24(core.detune + smootherStep(controls.detuneTarget, core.detune));
 	core.mix = sat24(core.mix + smootherStep(controls.mixTarget, core.mix));
-	int32_t inc[SuperSaw::kNumSaws];
-	increments(core, derived.pitch, inc);
+}
+
+// Counters advanced by d[], then the mix and level stages; the high-pass comes after.
+inline int32_t mixFrame(Core& core, const uint32_t* d, int32_t g, const SplitCoef& level) {
 	for (int32_t i = 0; i < SuperSaw::kNumSaws; i++) {
-		core.phase[i] += static_cast<uint32_t>(inc[i]) << 8;
+		core.phase[i] += d[i];
 	}
-	int32_t g = core.mix >> 16;
 	int32_t sum = mulShift(phaseValue(core.phase[0]), kCentreGain, 7);
 	for (int32_t i = 1; i < SuperSaw::kNumSaws; i++) {
 		sum += mulShift(phaseValue(core.phase[i]), g, 7);
 	}
-	int32_t s = levelStage(sat24(sum), SplitCoef(levelCoef(core.mix)));
-	return highPass(core.hpf, derived.hpf, s);
+	return levelStage(sat24(sum), level);
+}
+
+inline int32_t frameWith(Core& core, const Controls& controls, const Derived& derived, Hpf& hpf) {
+	smooth(core, controls);
+	uint32_t d[SuperSaw::kNumSaws];
+	steps(core.detune, derived.pitch, d);
+	return hpf.run(derived.hpf, mixFrame(core, d, core.mix >> 16, SplitCoef(levelCoef(core.mix))));
 }
 
 inline bool settled(const Core& core, const Controls& controls) {
 	return smootherStep(controls.detuneTarget, core.detune) == 0 && smootherStep(controls.mixTarget, core.mix) == 0;
 }
 
-inline void store(int32_t* even, int32_t* odd, int32_t t, int32_t v) {
-	((t & 1) ? odd : even)[t >> 1] = v;
+#if JP_OSC_NEON
+inline int32x4_t sat24q(int32x4_t v) {
+	return vshrq_n_s32(vqshlq_n_s32(v, 8), 8);
 }
+
+// Four frames' counter values from four frames' steps: an inclusive prefix sum across the lanes.
+inline uint32x4_t advance(uint32_t& phase, uint32x4_t d) {
+	const uint32x4_t zero = vdupq_n_u32(0);
+	d = vaddq_u32(d, vextq_u32(zero, d, 3));
+	d = vaddq_u32(d, vextq_u32(zero, d, 2));
+	uint32x4_t ph = vaddq_u32(d, vdupq_n_u32(phase));
+	phase = vgetq_lane_u32(ph, 3);
+	return ph;
+}
+
+// Sum of the seven saws for four frames. g is per lane (it moves with the mix smoother).
+inline int32x4_t mixSum(const uint32x4_t* ph, int32x4_t g) {
+	int32x4_t sum = vshrq_n_s32(vmulq_n_s32(vshrq_n_s32(vreinterpretq_s32_u32(ph[0]), 8), kCentreGain), 7);
+#pragma GCC unroll 8
+	for (int32_t i = 1; i < SuperSaw::kNumSaws; i++) {
+		sum = vsraq_n_s32(sum, vmulq_s32(vshrq_n_s32(vreinterpretq_s32_u32(ph[i]), 8), g), 7);
+	}
+	return sat24q(sum);
+}
+
+inline int32x4_t levelStageq(int32x4_t sum, int32x4_t high, int32x4_t low) {
+	if constexpr (kLevelCompensation) {
+		int32x4_t a = vshrq_n_s32(vmulq_s32(sum, high), 6);
+		a = vsraq_n_s32(a, vmulq_s32(vshrq_n_s32(sum, 7), low), 6);
+		return sat24q(a);
+	}
+	return sum;
+}
+
+// Four frames of a moving voice: smoothers stepped per frame, everything that follows across four lanes.
+inline int32x4_t movingBlock(Core& core, const Controls& controls, int32_t pitch) {
+	int32x2_t sm = vset_lane_s32(core.mix, vdup_n_s32(core.detune), 1);
+	const int32x2_t target = vset_lane_s32(controls.mixTarget, vdup_n_s32(controls.detuneTarget), 1);
+	int32_t trace[8];
+	for (int32_t l = 0; l < 4; l++) {
+		int32x2_t diff = vshr_n_s32(vshl_n_s32(vsub_s32(target, sm), 2), 2);
+		diff = vshr_n_s32(vshr_n_s32(vqshl_n_s32(diff, 8), 8), kSmootherShift);
+		sm = vshr_n_s32(vqshl_n_s32(vadd_s32(sm, diff), 8), 8);
+		vst1_s32(trace + 2 * l, sm);
+	}
+	core.detune = vget_lane_s32(sm, 0);
+	core.mix = vget_lane_s32(sm, 1);
+	const int32x4x2_t dm = vld2q_s32(trace); // val[0]: detune per frame, val[1]: mix per frame
+
+	const int32x4_t high = vshrq_n_s32(vshlq_n_s32(dm.val[0], 8), 24);
+	const int32x4_t low = vandq_s32(vshrq_n_s32(dm.val[0], 9), vdupq_n_s32(0x7f));
+	const int32x4_t base = vsraq_n_s32(vshrq_n_s32(vmulq_n_s32(high, pitch), 7), vmulq_n_s32(low, pitch >> 7), 7);
+	const int32x4_t baseSat = sat24q(vshrq_n_s32(vshlq_n_s32(base, 2), 2));
+	const int32x4_t p = vdupq_n_s32(pitch);
+
+	uint32x4_t ph[SuperSaw::kNumSaws];
+	ph[0] = advance(core.phase[0], vdupq_n_u32(static_cast<uint32_t>(pitch) << 8));
+	ph[1] = advance(core.phase[1], vreinterpretq_u32_s32(vshlq_n_s32(vaddq_s32(p, base), 8)));
+#pragma GCC unroll 8
+	for (int32_t i = 2; i < SuperSaw::kNumSaws; i++) {
+		int32x4_t inc = vsraq_n_s32(p, vmulq_n_s32(baseSat, kDetuneTable[i]), 7);
+		ph[i] = advance(core.phase[i], vreinterpretq_u32_s32(vshlq_n_s32(inc, 8)));
+	}
+	int32x4_t sum = mixSum(ph, vshrq_n_s32(dm.val[1], 16));
+	if constexpr (kLevelCompensation) {
+		// levelCoef() per lane: r >= 0 ? ~r & 0x7fffff : ~(r & 0x7fffff)
+		const int32x4_t mask = vdupq_n_s32(0x7fffff);
+		int32x4_t r =
+		    sat24q(vshlq_s32(vmulq_n_s32(dm.val[1], static_cast<int8_t>(kLevelMul)), vdupq_n_s32(-kLevelShift)));
+		int32x4_t coef = vandq_s32(vmvnq_s32(vandq_s32(r, mask)), vorrq_s32(mask, vshrq_n_s32(r, 31)));
+		sum =
+		    levelStageq(sum, vshrq_n_s32(vshlq_n_s32(coef, 8), 24), vandq_s32(vshrq_n_s32(coef, 9), vdupq_n_s32(0x7f)));
+	}
+	return sum;
+}
+#endif
 
 uint32_t seedState = 0x9e3779b9;
 
@@ -149,74 +239,86 @@ int32_t SuperSaw::pitchFromPhaseIncrement(uint32_t phaseIncrement) {
 }
 
 int32_t SuperSaw::frame(Core& core, const Controls& controls) {
-	return frameWith(core, controls, Derived(controls.pitch));
+	Hpf hpf(core.hpf);
+	int32_t out = frameWith(core, controls, Derived(controls.pitch), hpf);
+	hpf.save(core.hpf);
+	return out;
 }
 
 void SuperSaw::renderInternal(Core& core, const Controls& controls, int32_t* even, int32_t* odd, int32_t numPairs) {
 	const Derived derived(controls.pitch);
-	const int32_t total = numPairs * 2;
-	int32_t t = 0;
-
-	// While a smoother is moving the increments change every frame.
-	// Then one more if needed, so the vector loop starts on an even frame.
-	for (; t < total && (!settled(core, controls) || (t & 1)); t++) {
-		store(even, odd, t, frameWith(core, controls, derived));
-	}
+	Hpf hpf(core.hpf);
+	int32_t* const evenEnd = even + numPairs;
 
 #if JP_OSC_NEON
-	if (total - t >= 4) {
-		// Settled: increments are fixed, so four frames of all seven counters go in one vector each.
-		int32_t inc[kNumSaws];
-		increments(core, derived.pitch, inc);
-		const int32_t g = core.mix >> 16;
+	auto filterFour = [&](int32x4_t sum) __attribute__((always_inline)) {
+		// frames t, t+1, t+2, t+3 (t a multiple of 4) go to even, odd, even, odd
+		even[0] = hpf.run(derived.hpf, vgetq_lane_s32(sum, 0));
+		odd[0] = hpf.run(derived.hpf, vgetq_lane_s32(sum, 1));
+		even[1] = hpf.run(derived.hpf, vgetq_lane_s32(sum, 2));
+		odd[1] = hpf.run(derived.hpf, vgetq_lane_s32(sum, 3));
+		even += 2;
+		odd += 2;
+	};
+	// While a smoother is moving, four frames at a time with per-frame controls.
+	while (evenEnd - even >= 2 && !settled(core, controls)) {
+		filterFour(movingBlock(core, controls, derived.pitch));
+	}
+	if (evenEnd - even >= 2) {
+		// Settled, and it stays so for this call (the targets are fixed): steps, gain and level are constants.
+		uint32_t d[kNumSaws];
+		steps(core.detune, derived.pitch, d);
+		const int32x4_t g = vdupq_n_s32(core.mix >> 16);
 		const SplitCoef level(levelCoef(core.mix));
-		const int32x4_t lo24 = vdupq_n_s32(-0x800000);
-		const int32x4_t hi24 = vdupq_n_s32(0x7fffff);
+		const int32x4_t levelHigh = vdupq_n_s32(level.high);
+		const int32x4_t levelLow = vdupq_n_s32(level.low);
+		const uint32x4_t ramp = {1, 2, 3, 4};
 		uint32x4_t ph[kNumSaws];
 		uint32x4_t step[kNumSaws];
 		for (int32_t i = 0; i < kNumSaws; i++) {
-			uint32_t d = static_cast<uint32_t>(inc[i]) << 8;
-			const uint32_t lanes[4] = {core.phase[i] + d, core.phase[i] + 2 * d, core.phase[i] + 3 * d,
-			                           core.phase[i] + 4 * d};
-			ph[i] = vld1q_u32(lanes);
-			step[i] = vdupq_n_u32(4 * d);
+			ph[i] = vmlaq_n_u32(vdupq_n_u32(core.phase[i]), ramp, d[i]);
+			step[i] = vdupq_n_u32(4 * d[i]);
 		}
-		for (; total - t >= 4; t += 4) {
-			int32x4_t sum = vshrq_n_s32(vmulq_n_s32(vshrq_n_s32(vreinterpretq_s32_u32(ph[0]), 8), kCentreGain), 7);
-			for (int32_t i = 1; i < kNumSaws; i++) {
-				sum = vsraq_n_s32(sum, vmulq_n_s32(vshrq_n_s32(vreinterpretq_s32_u32(ph[i]), 8), g), 7);
-			}
-			sum = vminq_s32(vmaxq_s32(sum, lo24), hi24);
-			if constexpr (kLevelCompensation) {
-				int32x4_t a = vshrq_n_s32(vmulq_n_s32(sum, level.high), 6);
-				a = vsraq_n_s32(a, vmulq_n_s32(vshrq_n_s32(sum, 7), level.low), 6);
-				sum = vminq_s32(vmaxq_s32(a, lo24), hi24);
-			}
-			int32_t s[4];
-			vst1q_s32(s, sum);
+		do {
+			int32x4_t sum = levelStageq(mixSum(ph, g), levelHigh, levelLow);
 			for (int32_t i = 0; i < kNumSaws; i++) {
 				ph[i] = vaddq_u32(ph[i], step[i]);
 			}
-			// t is even here, so frames t, t+1, t+2, t+3 go to even, odd, even, odd
-			even[t >> 1] = highPass(core.hpf, derived.hpf, s[0]);
-			odd[t >> 1] = highPass(core.hpf, derived.hpf, s[1]);
-			even[(t >> 1) + 1] = highPass(core.hpf, derived.hpf, s[2]);
-			odd[(t >> 1) + 1] = highPass(core.hpf, derived.hpf, s[3]);
-		}
+			filterFour(sum);
+		} while (evenEnd - even >= 2);
 		for (int32_t i = 0; i < kNumSaws; i++) {
-			// lane 0 is one increment past the last frame rendered
-			core.phase[i] = vgetq_lane_u32(ph[i], 0) - (static_cast<uint32_t>(inc[i]) << 8);
+			// lane 0 is one step past the last frame rendered
+			core.phase[i] = vgetq_lane_u32(ph[i], 0) - d[i];
 		}
+	}
+	if (even < evenEnd) {
+		*even = frameWith(core, controls, derived, hpf);
+		*odd = frameWith(core, controls, derived, hpf);
+	}
+#else
+	while (even < evenEnd && !settled(core, controls)) {
+		*even++ = frameWith(core, controls, derived, hpf);
+		*odd++ = frameWith(core, controls, derived, hpf);
+	}
+	if (even < evenEnd) {
+		uint32_t d[kNumSaws];
+		steps(core.detune, derived.pitch, d);
+		const int32_t g = core.mix >> 16;
+		const SplitCoef level(levelCoef(core.mix));
+		do {
+			*even++ = hpf.run(derived.hpf, mixFrame(core, d, g, level));
+			*odd++ = hpf.run(derived.hpf, mixFrame(core, d, g, level));
+		} while (even < evenEnd);
 	}
 #endif
-
-	for (; t < total; t++) {
-		store(even, odd, t, frameWith(core, controls, derived));
-	}
+	hpf.save(core.hpf);
 }
 
 int32_t SuperSaw::highPassFrame(int32_t* hpfState, int32_t pitch, int32_t in) {
-	return highPass(hpfState, Derived(pitch).hpf, in);
+	Hpf hpf(hpfState);
+	int32_t out = hpf.run(Derived(pitch).hpf, in);
+	hpf.save(hpfState);
+	return out;
 }
 
 void SuperSaw::seed(State& state, const Controls& controls, uint32_t random) {

@@ -29,6 +29,10 @@
 #include "processing/source.h"
 #include "storage/multi_range/multisample_range.h"
 
+namespace {
+using JpSuperSawPool = deluge::memory::ObjectPool<deluge::dsp::jp::SuperSaw::State, deluge::memory::fast_allocator>;
+}
+
 VoiceUnisonPartSource::~VoiceUnisonPartSource() {
 	unassign(false);
 }
@@ -91,6 +95,14 @@ bool VoiceUnisonPartSource::noteOn(Voice* voice, Source* source, VoiceSamplePlay
 				supersawPhases = deluge::dsp::Supersaw::sidePhasesFrom(oscPos);
 			}
 		}
+		if (synthMode != SynthMode::FM && source->oscType == OscType::SUPERSAW && source->jpMode != 0
+		    && jpSuperSaw == nullptr) {
+			try {
+				jpSuperSaw = JpSuperSawPool::get().acquire().release();
+			} catch (deluge::exception e) {
+				jpSuperSaw = nullptr; // renders as the stock supersaw
+			}
+		}
 	}
 
 	if (resetEverything) {
@@ -106,6 +118,11 @@ void VoiceUnisonPartSource::unassign(bool deletingSong) {
 		voiceSample->beenUnassigned(deletingSong);
 		AudioEngine::voiceSampleUnassigned(voiceSample);
 		voiceSample = nullptr;
+	}
+
+	if (jpSuperSaw != nullptr) {
+		JpSuperSawPool::recycle(jpSuperSaw);
+		jpSuperSaw = nullptr;
 	}
 
 	if (dxVoice != nullptr) {

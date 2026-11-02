@@ -80,6 +80,23 @@ public:
 			c[j] = vld1_s32(kCoef + 2 * j);
 		}
 		for (; m + 4 <= n; m += 4) {
+			// even[m .. m + 36) once; each tap's four-sample window is a vext of two neighbours
+			int32x4_t e[9];
+			for (int32_t k = 0; k < 9; k++) {
+				e[k] = vld1q_s32(even + m + 4 * k);
+			}
+			auto window = [&](int32_t o) __attribute__((always_inline)) {
+				switch (o & 3) {
+				case 1:
+					return vextq_s32(e[o >> 2], e[(o >> 2) + 1], 1);
+				case 2:
+					return vextq_s32(e[o >> 2], e[(o >> 2) + 1], 2);
+				case 3:
+					return vextq_s32(e[o >> 2], e[(o >> 2) + 1], 3);
+				default:
+					return e[o >> 2];
+				}
+			};
 			int32x4_t o = vld1q_s32(odd + m);
 			int64x2_t lo = vdupq_n_s64(int64_t{1} << 30);
 			int64x2_t hi = lo;
@@ -87,8 +104,8 @@ public:
 			hi = vmlal_n_s32(hi, vget_high_s32(o), 1 << 30);
 #pragma GCC unroll 8
 			for (int32_t j = 0; j < kPairs; j += 2) {
-				int32x4_t s0 = vaddq_s32(vld1q_s32(even + m + 15 - j), vld1q_s32(even + m + 16 + j));
-				int32x4_t s1 = vaddq_s32(vld1q_s32(even + m + 14 - j), vld1q_s32(even + m + 17 + j));
+				int32x4_t s0 = vaddq_s32(window(15 - j), window(16 + j));
+				int32x4_t s1 = vaddq_s32(window(14 - j), window(17 + j));
 				lo = vmlal_lane_s32(lo, vget_low_s32(s0), c[j / 2], 0);
 				hi = vmlal_lane_s32(hi, vget_high_s32(s0), c[j / 2], 0);
 				lo = vmlal_lane_s32(lo, vget_low_s32(s1), c[j / 2], 1);
